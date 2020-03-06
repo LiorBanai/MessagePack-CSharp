@@ -36,8 +36,10 @@ namespace MessagePack
         /// </summary>
         /// <param name="memory">The buffer to read from.</param>
         public MessagePackReader(ReadOnlyMemory<byte> memory)
+            : this()
         {
             this.reader = new SequenceReader<byte>(memory);
+            this.Depth = 0;
         }
 
         /// <summary>
@@ -45,14 +47,21 @@ namespace MessagePack
         /// </summary>
         /// <param name="readOnlySequence">The sequence to read from.</param>
         public MessagePackReader(in ReadOnlySequence<byte> readOnlySequence)
+            : this()
         {
             this.reader = new SequenceReader<byte>(readOnlySequence);
+            this.Depth = 0;
         }
 
         /// <summary>
         /// Gets or sets the cancellation token for this deserialization operation.
         /// </summary>
         public CancellationToken CancellationToken { get; set; }
+
+        /// <summary>
+        /// Gets or sets the present depth of the object graph being deserialized.
+        /// </summary>
+        public int Depth { get; set; }
 
         /// <summary>
         /// Gets the <see cref="ReadOnlySequence{T}"/> originally supplied to the constructor.
@@ -110,6 +119,7 @@ namespace MessagePack
         public MessagePackReader Clone(in ReadOnlySequence<byte> readOnlySequence) => new MessagePackReader(readOnlySequence)
         {
             CancellationToken = this.CancellationToken,
+            Depth = this.Depth,
         };
 
         /// <summary>

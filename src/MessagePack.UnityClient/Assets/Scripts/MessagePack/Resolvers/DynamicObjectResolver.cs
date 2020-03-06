@@ -849,7 +849,7 @@ namespace MessagePack.Internal
         private static void BuildDeserialize(Type type, ObjectSerializationInfo info, ILGenerator il, Func<int, ObjectSerializationInfo.EmittableMember, Action> tryEmitLoadCustomFormatter, int firstArgIndex)
         {
             var reader = new ArgumentField(il, firstArgIndex, @ref: true);
-            var argResolver = new ArgumentField(il, firstArgIndex + 1);
+            var argOptions = new ArgumentField(il, firstArgIndex + 1);
 
             // if(reader.TryReadNil()) { return null; }
             Label falseLabel = il.DefineLabel();
@@ -869,6 +869,12 @@ namespace MessagePack.Internal
             }
 
             il.MarkLabel(falseLabel);
+
+            // options.Security.DepthStep(ref reader);
+            argOptions.EmitLoad();
+            il.EmitCall(getSecurityFromOptions);
+            reader.EmitLdarg();
+            il.EmitCall(securityDepthStep);
 
             // var length = ReadMapHeader(ref byteSequence);
             LocalBuilder length = il.DeclareLocal(typeof(int)); // [loc:1]
@@ -939,7 +945,7 @@ namespace MessagePack.Internal
 
             // IFormatterResolver resolver = options.Resolver;
             LocalBuilder localResolver = il.DeclareLocal(typeof(IFormatterResolver));
-            argResolver.EmitLoad();
+            argOptions.EmitLoad();
             il.EmitCall(getResolverFromOptions);
             il.EmitStloc(localResolver);
 
@@ -975,7 +981,7 @@ namespace MessagePack.Internal
                             var i = x.Value;
                             if (infoList[i].MemberInfo != null)
                             {
-                                EmitDeserializeValue(il, infoList[i], i, tryEmitLoadCustomFormatter, reader, argResolver, localResolver);
+                                EmitDeserializeValue(il, infoList[i], i, tryEmitLoadCustomFormatter, reader, argOptions, localResolver);
                                 il.Emit(OpCodes.Br, loopEnd);
                             }
                             else
@@ -1031,7 +1037,7 @@ namespace MessagePack.Internal
                         if (item.MemberInfo != null)
                         {
                             il.MarkLabel(item.SwitchLabel);
-                            EmitDeserializeValue(il, item, i++, tryEmitLoadCustomFormatter, reader, argResolver, localResolver);
+                            EmitDeserializeValue(il, item, i++, tryEmitLoadCustomFormatter, reader, argOptions, localResolver);
                             il.Emit(OpCodes.Br, loopEnd);
                         }
                     }
@@ -1076,6 +1082,14 @@ namespace MessagePack.Internal
                     il.EmitCall(onAfterDeserialize);
                 }
             }
+
+            // reader.Depth--;
+            reader.EmitLdarg();
+            il.Emit(OpCodes.Dup);
+            il.EmitCall(readerDepthGet);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Sub_Ovf);
+            il.EmitCall(readerDepthSet);
 
             if (info.IsStruct)
             {
@@ -1226,6 +1240,10 @@ namespace MessagePack.Internal
 
         private static readonly MethodInfo getFormatterWithVerify = typeof(FormatterResolverExtensions).GetRuntimeMethods().First(x => x.Name == nameof(FormatterResolverExtensions.GetFormatterWithVerify));
         private static readonly MethodInfo getResolverFromOptions = typeof(MessagePackSerializerOptions).GetRuntimeProperty(nameof(MessagePackSerializerOptions.Resolver)).GetMethod;
+        private static readonly MethodInfo getSecurityFromOptions = typeof(MessagePackSerializerOptions).GetRuntimeProperty(nameof(MessagePackSerializerOptions.Security)).GetMethod;
+        private static readonly MethodInfo securityDepthStep = typeof(MessagePackSecurity).GetRuntimeMethod(nameof(MessagePackSecurity.DepthStep), new[] { typeof(MessagePackReader).MakeByRefType() });
+        private static readonly MethodInfo readerDepthGet = typeof(MessagePackReader).GetRuntimeProperty(nameof(MessagePackReader.Depth)).GetMethod;
+        private static readonly MethodInfo readerDepthSet = typeof(MessagePackReader).GetRuntimeProperty(nameof(MessagePackReader.Depth)).SetMethod;
         private static readonly Func<Type, MethodInfo> getSerialize = t => typeof(IMessagePackFormatter<>).MakeGenericType(t).GetRuntimeMethod(nameof(IMessagePackFormatter<int>.Serialize), new[] { typeof(MessagePackWriter).MakeByRefType(), t, typeof(MessagePackSerializerOptions) });
         private static readonly Func<Type, MethodInfo> getDeserialize = t => typeof(IMessagePackFormatter<>).MakeGenericType(t).GetRuntimeMethod(nameof(IMessagePackFormatter<int>.Deserialize), new[] { refMessagePackReader, typeof(MessagePackSerializerOptions) });
         //// static readonly ConstructorInfo dictionaryConstructor = typeof(ByteArrayStringHashTable).GetTypeInfo().DeclaredConstructors.First(x => { var p = x.GetParameters(); return p.Length == 1 && p[0].ParameterType == typeof(int); });
@@ -1492,7 +1510,7 @@ namespace MessagePack.Internal
                 var searchFirst = true;
                 var hiddenIntKey = 0;
 
-                foreach (PropertyInfo item in type.GetRuntimeProperties())
+                foreach (PropertyInfo item in GetAllProperties(type))
                 {
                     if (item.GetCustomAttribute<IgnoreMemberAttribute>(true) != null)
                     {
@@ -1603,7 +1621,7 @@ namespace MessagePack.Internal
                     }
                 }
 
-                foreach (FieldInfo item in type.GetRuntimeFields())
+                foreach (FieldInfo item in GetAllFields(type))
                 {
                     if (item.GetCustomAttribute<IgnoreMemberAttribute>(true) != null)
                     {
@@ -1877,6 +1895,40 @@ namespace MessagePack.Internal
                 IsIntKey = isIntKey,
                 Members = members.Where(m => m.IsExplicitContract || constructorParameters.Contains(m) || m.IsWritable).ToArray(),
             };
+        }
+
+        private static IEnumerable<FieldInfo> GetAllFields(Type type)
+        {
+            if (type.BaseType is object)
+            {
+                foreach (var item in GetAllFields(type.BaseType))
+                {
+                    yield return item;
+                }
+            }
+
+            // with declared only
+            foreach (var item in type.GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            {
+                yield return item;
+            }
+        }
+
+        private static IEnumerable<PropertyInfo> GetAllProperties(Type type)
+        {
+            if (type.BaseType is object)
+            {
+                foreach (var item in GetAllProperties(type.BaseType))
+                {
+                    yield return item;
+                }
+            }
+
+            // with declared only
+            foreach (var item in type.GetProperties(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            {
+                yield return item;
+            }
         }
 
         private static bool TryGetNextConstructor(IEnumerator<ConstructorInfo> ctorEnumerator, ref ConstructorInfo ctor)

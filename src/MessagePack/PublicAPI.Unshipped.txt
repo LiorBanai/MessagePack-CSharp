@@ -1,14 +1,1 @@
-﻿MessagePack.ExtensionHeader.Equals(MessagePack.ExtensionHeader other) -> bool
-MessagePack.Formatters.InterfaceCollectionFormatter2<T>
-MessagePack.Formatters.InterfaceCollectionFormatter2<T>.InterfaceCollectionFormatter2() -> void
-MessagePack.Formatters.InterfaceListFormatter2<T>
-MessagePack.Formatters.InterfaceListFormatter2<T>.InterfaceListFormatter2() -> void
-MessagePack.MessagePackReader.ReadDateTime(MessagePack.ExtensionHeader header) -> System.DateTime
-MessagePack.MessagePackReader.TryReadArrayHeader(out int count) -> bool
-MessagePack.MessagePackReader.TryReadExtensionFormatHeader(out MessagePack.ExtensionHeader extensionHeader) -> bool
-MessagePack.MessagePackReader.TryReadMapHeader(out int count) -> bool
-MessagePack.MessagePackStreamReader.DiscardBufferedData() -> void
-MessagePack.MessagePackStreamReader.MessagePackStreamReader(System.IO.Stream stream, bool leaveOpen) -> void
-MessagePack.MessagePackStreamReader.ReadArrayAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<System.Buffers.ReadOnlySequence<byte>>
-MessagePack.MessagePackWriter.WriteBinHeader(int length) -> void
-MessagePack.MessagePackWriter.WriteStringHeader(int byteCount) -> void
+﻿
