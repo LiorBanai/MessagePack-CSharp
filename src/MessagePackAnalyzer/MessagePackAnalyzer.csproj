@@ -22,7 +22,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" version="2.9.8" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" version="2.10.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" version="3.9.0" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Strings.Designer.cs">
